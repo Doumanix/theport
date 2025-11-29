@@ -38,15 +38,14 @@ void setup()
         {
             serial.begin(115200);
         }
-        serial.println("=========================================================");
+        serial.println();
         serial.print("Selfbus BootloaderUpdater v", BOOTLOADERUPDATER_MAJOR_VERSION);
-        serial.print(".", BOOTLOADERUPDATER_MINOR_VERSION, DEC, 3);
+        serial.print(".", BOOTLOADERUPDATER_MINOR_VERSION);
         serial.println(" DEBUG MODE :-)");
         serial.print("Build: ");
         serial.print(__DATE__);
         serial.print(" ");
         serial.println(__TIME__);
-        serial.println("---------------------------------------------------------");
         serial.flush();
     );
 }
@@ -61,14 +60,12 @@ int main()
     d(
         serial.println("newBlSize: 0x", newBlSize, HEX, 4);
         serial.print("Erasing Sectors: ", newBlStartSector);
-        serial.println(" - ", newBlEndSector);
+        serial.print(" - ", newBlEndSector);
     )
 
     iapEraseSectorRange(newBlStartSector, newBlEndSector);
 
-    d(
-        serial.println(" --> done");
-    )
+    d(serial.println(" --> done");)
 
     for (const uint8_t * i = incbin_bl_start; i < incbin_bl_end; i += FLASH_SECTOR_SIZE)
     {
@@ -95,17 +92,11 @@ int main()
             }
             checksum = -checksum;
             *(int*)&buf[28] = checksum;
-            d(
-                serial.println("checksum: 0x", (int) checksum, HEX, 4);
-            )
+            d(serial.println("checksum: 0x", (int) checksum, HEX);)
         }
-        d(
-            serial.print("flashing 0x", flash);
-        )
+        d(serial.print("flashing 0x", flash);)
         iapProgram(flash, buf, FLASH_SECTOR_SIZE);
-        d(
-            serial.println(" --> done");
-        )
+        d(serial.println(" --> done");)
         digitalWrite(PIN_PROG, !digitalRead(PIN_PROG));
     }
     d(
