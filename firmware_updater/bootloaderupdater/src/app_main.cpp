@@ -50,6 +50,15 @@ void setup()
     );
 }
 
+void SystemReset()
+{
+    d(
+        serial.println("RESET");
+        serial.flush();
+    )
+    NVIC_SystemReset();
+}
+
 int main()
 {
     setup();
@@ -63,7 +72,11 @@ int main()
         serial.print(" - ", newBlEndSector);
     )
 
-    iapEraseSectorRange(newBlStartSector, newBlEndSector);
+    if (iapEraseSectorRange(newBlStartSector, newBlEndSector) != IAP_SUCCESS)
+    {
+        d(serial.println(" --> FAILED");)
+        SystemReset();
+    }
 
     d(serial.println(" --> done");)
 
@@ -95,13 +108,14 @@ int main()
             d(serial.println("checksum: 0x", (int) checksum, HEX);)
         }
         d(serial.print("flashing 0x", flash);)
-        iapProgram(flash, buf, FLASH_SECTOR_SIZE);
+        if (iapProgram(flash, buf, FLASH_SECTOR_SIZE) != IAP_SUCCESS)
+        {
+            d(serial.println(" --> FAILED");)
+            SystemReset();
+        }
         d(serial.println(" --> done");)
         digitalWrite(PIN_PROG, !digitalRead(PIN_PROG));
     }
-    d(
-        serial.println("RESET");
-        serial.flush();
-    )
-    NVIC_SystemReset();
+
+    SystemReset();
 }
