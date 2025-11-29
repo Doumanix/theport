@@ -70,47 +70,47 @@ int main()
         serial.println(" --> done");
     )
 
-	for (const uint8_t * i = incbin_bl_start; i < incbin_bl_end; i += FLASH_SECTOR_SIZE)
-	{
-	    __attribute__ ((aligned (FLASH_RAM_BUFFER_ALIGNMENT))) byte buf[FLASH_SECTOR_SIZE]; // Address of buf must be word aligned, see iapProgram(..) hint.
-		memset(buf, 0xFF, FLASH_SECTOR_SIZE);
-		unsigned int len = incbin_bl_end - i;
-		if (len > FLASH_SECTOR_SIZE)
-		{
-			len = FLASH_SECTOR_SIZE;
-		}
-		memcpy(buf, i, len);
+    for (const uint8_t * i = incbin_bl_start; i < incbin_bl_end; i += FLASH_SECTOR_SIZE)
+    {
+        __attribute__ ((aligned (FLASH_RAM_BUFFER_ALIGNMENT))) byte buf[FLASH_SECTOR_SIZE]; // Address of buf must be word aligned, see iapProgram(..) hint.
+        memset(buf, 0xFF, FLASH_SECTOR_SIZE);
+        unsigned int len = incbin_bl_end - i;
+        if (len > FLASH_SECTOR_SIZE)
+        {
+            len = FLASH_SECTOR_SIZE;
+        }
+        memcpy(buf, i, len);
 
-		uint8_t * flash = BOOTLOADER_FLASH_STARTADDRESS + (i - incbin_bl_start);
+        uint8_t * flash = BOOTLOADER_FLASH_STARTADDRESS + (i - incbin_bl_start);
 
-		if (flash == nullptr)
-		{
-	        // NXP bootloader uses an Int-Vect as a checksum to see if the application is valid.
-	        // If the value is not correct then it does not start the application
-		    // Vector table start always at base address, each entry is 4 byte
-		    uint32_t checksum = 0;
-			for (int j = 0; j < 7; j++) // Checksum is 2's complement of entries 0 through 6
-			{
-				checksum += *(int*)&buf[j*4];
-			}
-			checksum = -checksum;
-			*(int*)&buf[28] = checksum;
-		    d(
-		        serial.println("checksum: 0x", (int) checksum, HEX, 4);
-		    )
-		}
-	    d(
-	        serial.print("flashing 0x", flash);
-	    )
-		iapProgram(flash, buf, FLASH_SECTOR_SIZE);
-	    d(
-	        serial.println(" --> done");
-	    )
-	    digitalWrite(PIN_PROG, !digitalRead(PIN_PROG));
-	}
+        if (flash == nullptr)
+        {
+            // NXP bootloader uses an Int-Vect as a checksum to see if the application is valid.
+            // If the value is not correct then it does not start the application
+            // Vector table start always at base address, each entry is 4 byte
+            uint32_t checksum = 0;
+            for (int j = 0; j < 7; j++) // Checksum is 2's complement of entries 0 through 6
+            {
+                checksum += *(int*)&buf[j*4];
+            }
+            checksum = -checksum;
+            *(int*)&buf[28] = checksum;
+            d(
+                serial.println("checksum: 0x", (int) checksum, HEX, 4);
+            )
+        }
+        d(
+            serial.print("flashing 0x", flash);
+        )
+        iapProgram(flash, buf, FLASH_SECTOR_SIZE);
+        d(
+            serial.println(" --> done");
+        )
+        digitalWrite(PIN_PROG, !digitalRead(PIN_PROG));
+    }
     d(
         serial.println("RESET");
         serial.flush();
     )
-	NVIC_SystemReset();
+    NVIC_SystemReset();
 }
