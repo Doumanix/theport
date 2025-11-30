@@ -28,7 +28,7 @@ extern const uint8_t incbin_bl_end[];
 ///\todo Create common header of constants shared between BL and BLU
 #define BOOTLOADER_FLASH_STARTADDRESS ((uint8_t *) 0x0) //!< Flash start address of the bootloader
 
-/** Size of the BootBlockDescriptor. Must match the BOOT_BLOCK_DESC_SIZE of the BL in the boot_descriptor_block.h */
+/** Size of the BootDescriptorBlock. Must match the BOOT_BLOCK_DESC_SIZE of the BL in the boot_descriptor_block.h */
 constexpr uint16_t BOOT_BLOCK_DESC_SIZE = 0x100; // same as FLASH_PAGE_SIZE of sblib/platform.h
 
 void setup()
@@ -104,7 +104,7 @@ int main()
         {
             // NXP bootloader uses an Int-Vect as a checksum to see if the application is valid.
             // If the value is not correct, then it does not start the application
-            // Vector table start always at base address, each entry is 4 byte
+            // Vector table starts always at base address, each entry is 4 bytes
             uint32_t checksum = 0;
             for (int j = 0; j < 7; j++) // Checksum is 2's complement of entries 0 through 6
             {
