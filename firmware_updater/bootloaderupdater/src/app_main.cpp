@@ -15,7 +15,7 @@
 #   define d(x)
 #endif
 
-// Remember to change build-variable sw_version in .cproject file
+// Remember to change build-variable sw_version in the .cproject file
 constexpr uint8_t BOOTLOADERUPDATER_MAJOR_VERSION = 1;  //!< BootloaderUpdater major version @note change also in @ref APP_VERSION
 constexpr uint8_t BOOTLOADERUPDATER_MINOR_VERSION = 20; //!< BootloaderUpdater minor Version @note change also in @ref APP_VERSION
 
@@ -104,7 +104,7 @@ int main()
         {
             // NXP bootloader uses an Int-Vect as a checksum to see if the application is valid.
             // If the value is not correct, then it does not start the application
-            // Vector table starts always at base address, each entry is 4 bytes
+            // Vector table starts always at base address. Each entry is 4 bytes.
             uint32_t checksum = 0;
             for (int j = 0; j < 7; j++) // Checksum is 2's complement of entries 0 through 6
             {
@@ -125,7 +125,7 @@ int main()
     }
 
     // Make sure that the current boot descriptor of the BLU is erased,
-    // otherwise the BL will restart the BLU in an infinite loop.
+    // otherwise the BL will restart the BLU in an endless loop.
     const uint32_t bootDescriptorBlockPage = iapPageOfAddress(newBlEndAddress + BOOT_BLOCK_DESC_SIZE);
     d(serial.println("Erasing BootDescriptorPage: 0x", (unsigned int)bootDescriptorBlockPage, HEX);)
     if (iapErasePageRange(bootDescriptorBlockPage, bootDescriptorBlockPage) != IAP_SUCCESS)
