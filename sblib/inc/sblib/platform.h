@@ -54,7 +54,7 @@ unsigned int* ioconPointer(int port, int pinNum);
 #elif defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
 
 #include <stdint.h>
-#include "pico/platform.h"
+#include "pico.h"
 #include "hardware/gpio.h"
 #include "hardware/irq.h"
 
