@@ -331,36 +331,66 @@ enum PinInterruptMode
 	INTERRUPT_ENABLED      = 0x1000,
 };
 
+///
+// Inline functions
 //
-//  Inline functions
-//
-
+#if defined(__LPC11XX__)
 ALWAYS_INLINE void digitalWrite(int pin, bool value)
 {
-    int mask = digitalPinToBitMask(pin);
-    gpioPorts[digitalPinToPort(pin)]->MASKED_ACCESS[mask] = value ? mask : 0;
+	int mask = digitalPinToBitMask(pin);
+	gpioPorts[digitalPinToPort(pin)]->MASKED_ACCESS[mask] = value ? mask : 0;
 }
 
 ALWAYS_INLINE bool digitalRead(int pin)
 {
-    return gpioPorts[digitalPinToPort(pin)]->MASKED_ACCESS[digitalPinToBitMask(pin)] != 0;
+	int mask = digitalPinToBitMask(pin);
+	return gpioPorts[digitalPinToPort(pin)]->MASKED_ACCESS[mask] != 0;
 }
 
 ALWAYS_INLINE void pinEnableInterrupt(int pin)
 {
-    LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(pin)];
-    unsigned short mask = digitalPinToBitMask(pin);
-
-    port->IE  |=  mask;
+	LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(pin)];
+	unsigned short mask = digitalPinToBitMask(pin);
+	port->IE |= mask;
 }
 
 ALWAYS_INLINE void pinDisableInterrupt(int pin)
 {
-    LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(pin)];
-    unsigned short mask = digitalPinToBitMask(pin);
-
-    port->IE  &= ~mask;
-
+	LPC_GPIO_TypeDef* port = gpioPorts[digitalPinToPort(pin)];
+	unsigned short mask = digitalPinToBitMask(pin);
+	port->IE &= ~mask;
 }
+
+#elif defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+
+void sb_pin_irq_enable(int pin);
+void sb_pin_irq_disable(int pin);
+
+ALWAYS_INLINE void digitalWrite(int pin, bool value)
+{
+	if (sblibValidGpio(pin))
+		gpio_put(sblibGpioNumber(pin), value);
+}
+
+ALWAYS_INLINE bool digitalRead(int pin)
+{
+	return sblibValidGpio(pin) ? gpio_get(sblibGpioNumber(pin)) != 0 : false;
+}
+
+ALWAYS_INLINE void pinEnableInterrupt(int pin)
+{
+	if (sblibValidGpio(pin))
+		sb_pin_irq_enable(pin);
+}
+
+ALWAYS_INLINE void pinDisableInterrupt(int pin)
+{
+	if (sblibValidGpio(pin))
+		sb_pin_irq_disable(pin);
+}
+
+#else
+#error "Unsupported platform"
+#endif
 
 #endif /*sblib_digital_pin_h*/
