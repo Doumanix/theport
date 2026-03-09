@@ -35,6 +35,7 @@ add_library(sblib_platform STATIC
         platform/rp2354/src/sb_event_loop.cpp
         platform/rp2354/src/sb_timer.cpp
         platform/rp2354/src/sb_cpu.cpp
+        sblib/src/rp2354/digital_pin.cpp
 )
 
 target_include_directories(sblib_platform PUBLIC
@@ -53,18 +54,14 @@ target_link_libraries(sblib_platform PUBLIC
 )
 
 add_library(sblib_core STATIC
+        sblib/src/analog_pin.cpp
         sblib/src/arrays.cpp
         sblib/src/buffered_stream.cpp
-        sblib/src/digital_pin_shift.cpp
         sblib/src/ioports.cpp
         sblib/src/mem_mapper.cpp
         sblib/src/new.cpp
-        sblib/src/onewire.cpp
         sblib/src/print.cpp
-        sblib/src/stream.cpp
-        sblib/src/utils.cpp
         sblib/src/version.cpp
-        sblib/src/rp2354/digital_pin.cpp
 )
 
 target_include_directories(sblib_core PUBLIC
