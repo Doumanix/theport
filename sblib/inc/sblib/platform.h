@@ -65,7 +65,7 @@ unsigned int* ioconPointer(int port, int pinNum);
  * GPIO0..31  as PIO0_0..PIO0_31
  * GPIO32..47 as PIO1_0..PIO1_15
  */
-ALWAYS_INLINE static unsigned int sblibGpioNumber(int pin)
+static inline unsigned int sblibGpioNumber(int pin)
 {
     return (((unsigned int) pin >> 5) & 0x3u) * 32u + ((unsigned int) pin & 31u);
 }
@@ -73,7 +73,7 @@ ALWAYS_INLINE static unsigned int sblibGpioNumber(int pin)
 /**
  * Return true if the PortPin encoding maps to a valid RP2354 GPIO.
  */
-ALWAYS_INLINE static bool sblibValidGpio(int pin)
+static inline bool sblibValidGpio(int pin)
 {
     return sblibGpioNumber(pin) < 48u;
 }

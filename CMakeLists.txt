@@ -7,12 +7,12 @@ set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/extern/pico-sdk")
 if (NOT EXISTS "${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
     if (NOT PICO_SDK_PATH AND DEFINED ENV{PICO_SDK_PATH})
         set(PICO_SDK_PATH $ENV{PICO_SDK_PATH})
-    endif()
-endif()
+    endif ()
+endif ()
 
 if (NOT EXISTS "${PICO_SDK_PATH}/external/pico_sdk_import.cmake")
     message(FATAL_ERROR "pico-sdk not found. Expected at extern/pico-sdk or set PICO_SDK_PATH.")
-endif()
+endif ()
 
 include(${PICO_SDK_PATH}/external/pico_sdk_import.cmake)
 
@@ -53,28 +53,17 @@ target_link_libraries(sblib_platform PUBLIC
 )
 
 add_library(sblib_core STATIC
-        sblib/src/analog_pin.cpp
         sblib/src/arrays.cpp
         sblib/src/buffered_stream.cpp
-        sblib/src/debounce.cpp
         sblib/src/digital_pin_shift.cpp
-        sblib/src/i2c.cpp
-        sblib/src/iap.cpp
         sblib/src/ioports.cpp
-        sblib/src/main.cpp
         sblib/src/mem_mapper.cpp
         sblib/src/new.cpp
         sblib/src/onewire.cpp
         sblib/src/print.cpp
-        sblib/src/serial.cpp
-        sblib/src/serial0.cpp
-        sblib/src/spi.cpp
         sblib/src/stream.cpp
-        sblib/src/timer.cpp
         sblib/src/utils.cpp
         sblib/src/version.cpp
-
-        # RP2354 backend
         sblib/src/rp2354/digital_pin.cpp
 )
 
@@ -89,14 +78,6 @@ target_compile_definitions(sblib_core PUBLIC
 
 target_link_libraries(sblib_core PUBLIC
         sblib_platform
-        hardware_uart
-        hardware_gpio
-        hardware_sync
-        hardware_irq
-        hardware_flash
-        hardware_watchdog
-        pico_stdlib
-        pico_time
 )
 
 add_executable(bringup_blinky_uart

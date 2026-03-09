@@ -1,0 +1,11 @@
+# Standardverhalten: Automatische Normalisierung zu LF beim Commit
+* text=auto eol=lf
+
+# Spezifische Dateitypen explizit auf LF erzwingen
+*.cpp text eol=lf
+*.h text eol=lf
+*.txt text eol=lf
+
+# Binärdateien ignorieren (damit sie nicht beschädigt werden)
+*.png binary
+*.jpg binary

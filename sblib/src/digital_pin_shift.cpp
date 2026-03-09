@@ -9,6 +9,10 @@
  */
 #include <sblib/digital_pin.h>
 
+#ifndef __NOP
+#define __NOP() __asm volatile ("nop")
+#endif
+
 byte shiftIn(int dataPin, int clockPin, BitOrder bitOrder)
 {
     int value = 0;

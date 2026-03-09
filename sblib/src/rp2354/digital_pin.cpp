@@ -31,16 +31,20 @@ namespace
 
     static inline uint32_t irq_events_from_mode(int mode)
     {
-        switch (mode & 0x300)
+        switch (mode & 0x0111)
         {
-            case INTERRUPT_ON_FALLING:
-                return GPIO_IRQ_EDGE_FALL;
-            case INTERRUPT_ON_RISING:
-                return GPIO_IRQ_EDGE_RISE;
-            case INTERRUPT_ON_CHANGE:
-                return GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL;
-            default:
-                return 0;
+        case INTERRUPT_EDGE_FALLING:
+            return GPIO_IRQ_EDGE_FALL;
+        case INTERRUPT_EDGE_RISING:
+            return GPIO_IRQ_EDGE_RISE;
+        case INTERRUPT_EDGE_BOTH:
+            return GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL;
+        case INTERRUPT_LEVEL_LOW:
+            return GPIO_IRQ_LEVEL_LOW;
+        case INTERRUPT_LEVEL_HIGH:
+            return GPIO_IRQ_LEVEL_HIGH;
+        default:
+            return 0;
         }
     }
 
