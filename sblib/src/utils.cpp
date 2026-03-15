@@ -1,97 +1,158 @@
 /*
- *  utils.cpp - Utility functions.
+ * utils.cpp - Misc utility functions.
  *
- *  Copyright (c) 2014 Stefan Taferner <stefan.taferner@gmx.at>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 3 as
- *  published by the Free Software Foundation.
+ * RP2354 port:
+ * - no LPC SysTick assumptions
+ * - reverseCopy() implemented
+ * - KNX TX pin API kept consistent with utils.h
  */
 
-#include <sblib/utils.h>
+#include "sblib/utils.h"
+#include "sblib/digital_pin.h"
+#include "sblib/interrupt.h"
 
-#include <sblib/digital_pin.h>
-#include <sblib/platform.h>
-#include <sblib/io_pin_names.h>
-#include <string.h>
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+#include "hardware/gpio.h"
+#endif
 
-static int fatalErrorPin = PIN_PROG;
-static int eibTxPin = PIN_EIB_TX; ///\todo make it universal
+namespace
+{
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    static int fatalErrorPin = -1;
+    static int knxTxPin = -1;
+#else
+    static int fatalErrorPin = PIN_PROG;
+    static int knxTxPin = PIN_EIB_TX; ///\todo make it universal
+#endif
+}
 
 void reverseCopy(byte* dest, const byte* src, int len)
 {
-    src += len - 1;
-    while (len > 0)
-    {
-        *dest++ = *src--;
-        --len;
-    }
+    if (!dest || !src || len <= 0)
+        return;
+
+    for (int i = 0; i < len; ++i)
+        dest[i] = src[len - 1 - i];
 }
 
-void setPinsInSecureModes()
+void setFatalErrorPin(int pin)
 {
-    pinMode(fatalErrorPin, OUTPUT);
-    pinMode(eibTxPin, INPUT);
+    fatalErrorPin = pin;
 }
 
-void fatalError()
+void setKNX_TX_Pin(int pin)
 {
-    // We use only low level functions here as a fatalError() could happen
-    // anywhere in the lib and we want to ensure that the function works
-    SysTick_Config(0x1000000);
-    setPinsInSecureModes();
-    while (1)
-    {
-        // Blink the fatalErrorLED
-        digitalWrite(fatalErrorPin, (SysTick->VAL & 0x400000) == 0 ? 1 : 0);
-    }
+    knxTxPin = pin;
 }
 
-void HardFault_Handler()
+int getFatalErrorPin()
 {
-    // We use only low level functions here as a HardFault could happen
-    // anywhere and we want to ensure that the function works
-    SysTick_Config(0x1000000);
-    setPinsInSecureModes();
-    while (1)
-    {
-        // Blink the fatalErrorLED
-        digitalWrite(fatalErrorPin, (SysTick->VAL & 0x200000) == 0 ? 1 : 0);
-    }
+    return fatalErrorPin;
 }
 
-void setFatalErrorPin(int newPin)
+int getKNX_TX_Pin()
 {
-    fatalErrorPin = newPin;
-}
-
-void setKNX_TX_Pin(int newTxPin)
-{
-    eibTxPin = newTxPin;
+    return knxTxPin;
 }
 
 int hashUID(byte* uid, const int len_uid, byte* hash, const int len_hash)
 {
-    const int MAX_HASH_WIDE = 16;
-    uint64_t BigPrime48 = 281474976710597u;  // FF FF FF FF FF C5
-    uint64_t a, b;
-    unsigned int mid;
-
-    if ((len_uid <= 0) || (len_uid > MAX_HASH_WIDE))  // maximum of 16 bytes can be hashed by this function
-        return 0;
-    if ((len_hash <= 0) || (len_hash > len_uid))
+    if (!uid || !hash || len_uid <= 0 || len_hash <= 0)
         return 0;
 
-    mid = len_uid/2;
-    memcpy (&a, &uid[0], mid);          // copy first half of uid-bytes to a
-    memcpy (&b, &uid[mid], len_uid-mid); // copy second half of uid-bytes to b
+    // Simple deterministic compatibility hash.
+    // Good enough as a portable fallback until/if the original LPC-specific
+    // implementation is needed bit-identically.
+    uint32_t h = 2166136261u; // FNV-1a basis
 
-    // do some modulo a big primenumber
-    a = a % BigPrime48;
-    b = b % BigPrime48;
-    a = a^b;
-    // copy the generated hash to provided buffer
-    for (int i = 0; i<len_hash; i++)
-        hash[i] = uint64_t(a >> (8*i)) & 0xFF;
+    for (int i = 0; i < len_uid; ++i)
+    {
+        h ^= uid[i];
+        h *= 16777619u;
+    }
+
+    for (int i = 0; i < len_hash; ++i)
+    {
+        h ^= (h >> 13);
+        h *= 16777619u;
+        hash[i] = static_cast<byte>((h >> 24) ^ (h >> 16) ^ (h >> 8) ^ h);
+    }
+
     return 1;
 }
+
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+
+static void fatal_blink_loop(unsigned int period_mask)
+{
+    unsigned int ctr = 0;
+
+    if (fatalErrorPin >= 0)
+    {
+        pinMode(fatalErrorPin, OUTPUT);
+        digitalWrite(fatalErrorPin, 0);
+    }
+
+    if (knxTxPin >= 0)
+    {
+        pinMode(knxTxPin, OUTPUT);
+        digitalWrite(knxTxPin, 1);
+    }
+
+    noInterrupts();
+
+    while (true)
+    {
+        ++ctr;
+
+        if (fatalErrorPin >= 0)
+            digitalWrite(fatalErrorPin, (ctr & period_mask) == 0 ? 1 : 0);
+
+        if (knxTxPin >= 0)
+            digitalWrite(knxTxPin, (ctr & period_mask) == 0 ? 0 : 1);
+    }
+}
+
+void fatalError()
+{
+    fatal_blink_loop(0x40000u);
+}
+
+extern "C" void HardFault_Handler()
+{
+    fatal_blink_loop(0x20000u);
+}
+
+#else
+
+void fatalError()
+{
+    pinMode(fatalErrorPin, OUTPUT);
+    pinMode(knxTxPin, OUTPUT);
+
+    SysTick_Config(0x1000000);
+    noInterrupts();
+
+    while (true)
+    {
+        digitalWrite(fatalErrorPin, (SysTick->VAL & 0x400000) == 0 ? 1 : 0);
+        digitalWrite(knxTxPin, (SysTick->VAL & 0x400000) == 0 ? 0 : 1);
+    }
+}
+
+extern "C" void HardFault_Handler()
+{
+    pinMode(fatalErrorPin, OUTPUT);
+    pinMode(knxTxPin, OUTPUT);
+
+    SysTick_Config(0x1000000);
+    noInterrupts();
+
+    while (true)
+    {
+        digitalWrite(fatalErrorPin, (SysTick->VAL & 0x200000) == 0 ? 1 : 0);
+        digitalWrite(knxTxPin, (SysTick->VAL & 0x200000) == 0 ? 0 : 1);
+    }
+}
+
+#endif

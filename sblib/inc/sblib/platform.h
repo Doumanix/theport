@@ -87,7 +87,11 @@ extern uint8_t FLASH[];
 # define LPC_FLASH_BASE (FLASH)
 #else
 #ifndef LPC_FLASH_BASE
-#define LPC_FLASH_BASE 0
+#  if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+#    define LPC_FLASH_BASE ((uint8_t*) XIP_BASE)
+#  else
+#    define LPC_FLASH_BASE 0
+#  endif
 #endif
 #endif
 

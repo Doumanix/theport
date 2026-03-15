@@ -96,7 +96,11 @@ enum TxErrorCode
 /* Timing related macros */
 
 #define TICKS_PER_SECOND    1000000                                  //!< Timer is in microseconds (usec)
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+#define TIMER_PRESCALER     (F_CPU / TICKS_PER_SECOND - 1) //!< The value for the prescaler
+#else
 #define TIMER_PRESCALER     (SystemCoreClock / TICKS_PER_SECOND - 1) //!< The value for the prescaler
+#endif
 #define BIT_TIME            (TICKS_PER_SECOND / 9600)                //!< Default time between two bits (104 usec)
 #define BIT_TIMES(x)        ((x) * BIT_TIME)                         //!< Microseconds of x bits on the bus
 #define BIT_TIMES_DELAY(x)  (((x) * TICKS_PER_SECOND + 4800) / 9600) //!< Microseconds of x bits delay on the bus (inter frame), with integer rounding

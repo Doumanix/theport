@@ -11,6 +11,8 @@
 #include <sblib/eib/knx_lpdu.h>
 #include <sblib/eib/bcu_base.h>
 #include <sblib/eib/bus.h>
+#include "sb_gpio.h"
+#include "hardware/watchdog.h"
 
 static Bus* timerBusObj;
 // The interrupt handler for the EIB bus access object
@@ -200,7 +202,14 @@ void BcuBase::softSystemReset()
 #endif
     }
 
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    watchdog_reboot(0, 0, 0);
+    while (true)
+    {
+    }
+#else
     NVIC_SystemReset();
+#endif
 }
 
 void BcuBase::setProgPin(int prgPin) {

@@ -1,139 +1,41 @@
 /*
- *  interrupt.h - Functions and classes for interrupt handling
+ * interrupt.h - Interrupt related functions.
  *
- *  Copyright (c) 2014 Stefan Taferner <stefan.taferner@gmx.at>
- *
- *  This program is free software; you can redistribute it and/or modify
- *  it under the terms of the GNU General Public License version 3 as
- *  published by the Free Software Foundation.
+ * RP2354 first-cut port:
+ * - LPC11xx path keeps CMSIS/NVIC behavior
+ * - RP2354 path avoids LPC/CMSIS type assumptions and uses Cortex-M NVIC
+ *   registers plus inline assembly for global IRQ control
  */
+
 #ifndef sblib_interrupt_h
 #define sblib_interrupt_h
 
-#include <sblib/platform.h>
-#include <sblib/types.h>
-#include <sblib/utils.h>
+#include "sblib/platform.h"
+#include "sblib/types.h"
 
-/**
- * Interrupt handlers have fixed names. You need to give your interrupt handler the
- * correct name, then it is used automatically when it's interrupt is enabled. The
- * interrupt handler must be declared as extern "C":
- *
- * extern "C" void TIMER16_1_IRQHandler() { ...handle the interrupt.... }
- *
- * Use the following function names when writing an interrupt handler:
- *
- * ADC_IRQHandler()
- * BOD_IRQHandler()
- * CAN_IRQHandler()
- * I2C_IRQHandler()
- * PIOINT0_IRQHandler()
- * PIOINT1_IRQHandler()
- * PIOINT2_IRQHandler()
- * PIOINT3_IRQHandler()
- * SSP0_IRQHandler()
- * SSP1_IRQHandler()
- * TIMER16_0_IRQHandler()
- * TIMER16_1_IRQHandler()
- * TIMER32_0_IRQHandler()
- * TIMER32_1_IRQHandler()
- * UART_IRQHandler()
- * WAKEUP_IRQHandler()
- * WDT_IRQHandler()
- */
+#if defined(__LPC11XX__)
 
 /**
  * Disable all interrupts.
  */
-void noInterrupts();
-
-/**
- * Re-enable all interrupts after they have been disabled with noInterrupts().
- */
-void interrupts();
-
-/**
- * Wait for an interrupt. Puts the processor to sleep until an interrupt occurs.
- */
-void waitForInterrupt();
-
-/**
- * Enable an interrupt.
- *
- * @param interruptType - the interrupt to enable: TIMER_16_0_IRQn, I2C_IRQn, ...
- */
-void enableInterrupt(IRQn_Type interruptType);
-
-/**
- * Disable an interrupt.
- *
- * @param interruptType - the interrupt to enable: TIMER_16_0_IRQn, I2C_IRQn, ...
- */
-void disableInterrupt(IRQn_Type interruptType);
-
-/**
- * Clear the pending status of an interrupt.
- *
- * @param interruptType - the interrupt to clear: TIMER_16_0_IRQn, I2C_IRQn, ...
- */
-void clearPendingInterrupt(IRQn_Type interruptType);
-
-/**
- * Set the pending status of an interrupt.
- *
- * @param interruptType - the interrupt to set: TIMER_16_0_IRQn, I2C_IRQn, ...
- */
-void setPendingInterrupt(IRQn_Type interruptType);
-
-/**
- * @fn bool isInsideInterrupt()
- * @brief Returns if within an Isr
- *
- * @return true if called inside a Isr otherwise false
- */
-bool isInsideInterrupt(void);
-
-/**
- * @fn bool getInterruptEnabled(IRQn_Type)
- * @brief Returns the enabled status of an interrupt
- *        doesnt work for NonMaskableInt_IRQn,
- *                        HardFault_IRQn,
- *                        SVCall_IRQn,
- *                        PendSV_IRQn,
- *                        SysTick_IRQn
- *
- * @param interruptType - the interrupt to get enabled status must be >=0
- * @return true if interrupt is enabled, otherwise false
- */
-bool getInterruptEnabled(IRQn_Type interruptType);
-
-/**
- * This define creates an interrupt handler that calls a callback function.
- *
- * @param handler - the name of the interrupt handler, e.g. TIMER16_0_IRQHandler
- * @param callback - the function to call in the interrupt handler
- */
-#define CREATE_INTERRUPT_HANDLER(handler, callback) \
-extern "C" void handler() { callback; }
-
-
-//
-// Inline functions
-//
-
 ALWAYS_INLINE void noInterrupts()
 {
-    // data synchronization barrier and instruction synchronization barrier to ensure that no interrupt occurs after we disabled them
     __DSB();
     __ISB();
     __disable_irq();
 }
 
+/**
+ * Enable all interrupts.
+ */
 ALWAYS_INLINE void interrupts()
 {
     __enable_irq();
 }
 
+/**
+ * Wait for interrupt.
+ */
 ALWAYS_INLINE void waitForInterrupt()
 {
     __WFI();
@@ -141,41 +43,125 @@ ALWAYS_INLINE void waitForInterrupt()
 
 ALWAYS_INLINE void enableInterrupt(IRQn_Type interruptType)
 {
-    NVIC->ISER[0] = 1 << (interruptType & 0x1f);
+    NVIC_EnableIRQ(interruptType);
 }
 
 ALWAYS_INLINE void disableInterrupt(IRQn_Type interruptType)
 {
-    // data synchronization barrier and instruction synchronization barrier to ensure that no interrupt occurs after we disabled them
-    __DSB();
-    __ISB();
-    NVIC->ICER[0] = 1 << (interruptType & 0x1f);
+    NVIC_DisableIRQ(interruptType);
 }
 
 ALWAYS_INLINE void clearPendingInterrupt(IRQn_Type interruptType)
 {
-    NVIC->ICPR[0] = 1 << (interruptType & 0x1f);
+    NVIC_ClearPendingIRQ(interruptType);
 }
 
 ALWAYS_INLINE void setPendingInterrupt(IRQn_Type interruptType)
 {
-    NVIC->ISPR[0] = 1 << (interruptType & 0x1f);
+    NVIC_SetPendingIRQ(interruptType);
 }
 
-ALWAYS_INLINE bool isInsideInterrupt(void)
+ALWAYS_INLINE bool isInsideInterrupt()
 {
-    return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0 ;
+    return (SCB->ICSR & SCB_ICSR_VECTACTIVE_Msk) != 0;
 }
 
 ALWAYS_INLINE bool getInterruptEnabled(IRQn_Type interruptType)
 {
-    if (interruptType >= 0)
-    {
-        return ((NVIC->ICER[0] >> (interruptType & 0x1f)) == 1);
-    }
-    else
-    {
-        fatalError();
-    }
+    return NVIC->ISER[((unsigned int) interruptType) >> 5] & (1u << (((unsigned int) interruptType) & 31u));
 }
-#endif /*sblib_interrupt_h*/
+
+#elif defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+
+/*
+ * RP2354 path
+ *
+ * We intentionally do not depend on CMSIS IRQn_Type here yet, because the
+ * current RP2354 build path is being brought up incrementally and should not
+ * require the LPC/CMSIS type universe to compile.
+ */
+
+ALWAYS_INLINE void noInterrupts()
+{
+    __asm volatile (
+        "dsb 0xF\n"
+        "isb 0xF\n"
+        "cpsid i\n"
+        :
+        :
+        : "memory"
+    );
+}
+
+ALWAYS_INLINE void interrupts()
+{
+    __asm volatile (
+        "cpsie i\n"
+        :
+        :
+        : "memory"
+    );
+}
+
+ALWAYS_INLINE void waitForInterrupt()
+{
+    __asm volatile (
+        "wfi\n"
+        :
+        :
+        : "memory"
+    );
+}
+
+ALWAYS_INLINE void enableInterrupt(int interruptType)
+{
+    volatile unsigned int* iser =
+        (volatile unsigned int*) (0xE000E100u + ((((unsigned int) interruptType) >> 5u) << 2u));
+    *iser = 1u << (((unsigned int) interruptType) & 31u);
+}
+
+ALWAYS_INLINE void disableInterrupt(int interruptType)
+{
+    volatile unsigned int* icer =
+        (volatile unsigned int*) (0xE000E180u + ((((unsigned int) interruptType) >> 5u) << 2u));
+    *icer = 1u << (((unsigned int) interruptType) & 31u);
+}
+
+ALWAYS_INLINE void clearPendingInterrupt(int interruptType)
+{
+    volatile unsigned int* icpr =
+        (volatile unsigned int*) (0xE000E280u + ((((unsigned int) interruptType) >> 5u) << 2u));
+    *icpr = 1u << (((unsigned int) interruptType) & 31u);
+}
+
+ALWAYS_INLINE void setPendingInterrupt(int interruptType)
+{
+    volatile unsigned int* ispr =
+        (volatile unsigned int*) (0xE000E200u + ((((unsigned int) interruptType) >> 5u) << 2u));
+    *ispr = 1u << (((unsigned int) interruptType) & 31u);
+}
+
+ALWAYS_INLINE bool isInsideInterrupt()
+{
+    unsigned int ipsr;
+    __asm volatile (
+        "mrs %0, ipsr\n"
+        : "=r" (ipsr)
+        :
+        : "memory"
+    );
+    return ipsr != 0;
+}
+
+ALWAYS_INLINE bool getInterruptEnabled(int interruptType)
+{
+    volatile unsigned int* iser =
+        (volatile unsigned int*) (0xE000E100u + ((((unsigned int) interruptType) >> 5u) << 2u));
+    return ((*iser) & (1u << (((unsigned int) interruptType) & 31u))) != 0;
+}
+
+#else
+#error "Unsupported platform"
+#endif
+
+#endif /* sblib_interrupt_h */

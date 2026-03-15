@@ -163,6 +163,9 @@ protected:
     // Allow the interrupt handler to call our protected methods
     friend void UART_IRQHandler();
 
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    friend void serial_uart0_irq_handler();
+#endif
     /**
      * Handle the serial interrupt.
      */

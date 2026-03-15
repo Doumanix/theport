@@ -102,14 +102,6 @@ namespace
 
         if (gpio >= kMaxGpio)
             return;
-
-        /*
-         * sblib expects the actual interrupt masking/unmasking to happen via
-         * pinEnableInterrupt()/pinDisableInterrupt(). The user ISR hookup is
-         * handled elsewhere in the library, just like on LPC.
-         *
-         * We therefore only keep the GPIO IRQ armed here.
-         */
     }
 
     static void ensure_irq_dispatcher_installed()
@@ -179,8 +171,32 @@ void pinMode(int pin, int mode)
 
     const unsigned int gpio = gpio_num_from_pin(pin);
     const short requested_func = (short) ((mode >> 18) & 0x1f);
+    const unsigned short type = mode & 0xf000;
 
     gpio_init(gpio);
+
+    if (type == OUTPUT_MATCH)
+    {
+        // exakt wie dein funktionierender Burst-Test
+        gpio_disable_pulls(gpio);
+        gpio_set_dir(gpio, GPIO_OUT);
+        gpio_set_function(gpio, GPIO_FUNC_SIO);
+        gpio_set_input_enabled(gpio, false);
+        gpio_set_drive_strength(gpio, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_slew_rate(gpio, GPIO_SLEW_RATE_FAST);
+        return;
+    }
+
+    if (type == INPUT_CAPTURE)
+    {
+        // sauberer Capture-Eingang für den Bus:
+        // keine Pulls, SIO, Eingang aktiv
+        gpio_set_function(gpio, GPIO_FUNC_SIO);
+        gpio_disable_pulls(gpio);
+        gpio_set_input_enabled(gpio, true);
+        gpio_set_dir(gpio, GPIO_IN);
+        return;
+    }
 
     if (requested_func == 0 || requested_func == PF_PIO)
     {
@@ -192,10 +208,6 @@ void pinMode(int pin, int mode)
 
         if (fn == GPIO_FUNC_NULL)
         {
-            /*
-             * Unsupported alternate function on RP2354 backend.
-             * Fall back to plain GPIO to keep behavior deterministic.
-             */
             gpio_set_function(gpio, GPIO_FUNC_SIO);
         }
         else
@@ -210,12 +222,6 @@ void pinMode(int pin, int mode)
         gpio_set_dir(gpio, GPIO_IN);
 
     apply_pull_mode(gpio, mode);
-
-    /*
-     * Open-drain is not natively modeled in the original LPC path either via a
-     * separate runtime abstraction. For now keep the pin as normal GPIO.
-     * If needed later, this can be emulated by switching direction dynamically.
-     */
 }
 
 void pinInterruptMode(int pin, int mode)
@@ -247,10 +253,6 @@ void pinInterruptMode(int pin, int mode)
 
     ensure_irq_dispatcher_installed();
 
-    /*
-     * Match LPC behavior: pinInterruptMode() configures the trigger, while the
-     * actual interrupt enable is controlled separately by pinEnableInterrupt().
-     */
     gpio_set_irq_enabled(gpio,
                          GPIO_IRQ_EDGE_RISE |
                          GPIO_IRQ_EDGE_FALL |

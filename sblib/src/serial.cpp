@@ -23,6 +23,11 @@
 #include <sblib/interrupt.h>
 #include <sblib/platform.h>
 
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+#include "hardware/uart.h"
+#include "hardware/irq.h"
+#endif
+
 #define LSR_RDR  0x01   //!> UART line status: receive data ready bit: RBR holds an unread character
 #define LSR_OE   0x02   //!> UART line status: overrun error bit
 #define LSR_PE   0x04   //!> UART line status: parity error bit
@@ -33,6 +38,16 @@
 #define LSR_RXFE 0x80   //!> UART line status: error in RX FIFO
 #define UART_IE_RBR 0x01    //!> UART read-buffer-ready interrupt
 #define UART_IE_THRE 0x02   //!> UART transmit-hold-register-empty interrupt
+
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+static Serial* g_activeSerial = nullptr;
+
+void serial_uart0_irq_handler()
+{
+    if (g_activeSerial)
+        g_activeSerial->interruptHandler();
+}
+#endif
 
 Serial::Serial(int rxPin, int txPin) :
     enabled_(false)
@@ -61,6 +76,29 @@ void Serial::setTxPin(int txPin)
 
 void Serial::begin(int baudRate, SerialConfig config)
 {
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    (void) config;
+
+    disableInterrupt(UART0_IRQ);
+
+    uart_init(uart0, (uint32_t) baudRate);
+    uart_set_hw_flow(uart0, false, false);
+    uart_set_format(uart0, 8, 1, UART_PARITY_NONE);
+    uart_set_fifo_enabled(uart0, true);
+
+    clearBuffers();
+    while (uart_is_readable(uart0))
+        (void) uart_getc(uart0);
+
+    g_activeSerial = this;
+    irq_set_exclusive_handler(UART0_IRQ, serial_uart0_irq_handler);
+    irq_set_enabled(UART0_IRQ, true);
+    uart_set_irq_enables(uart0, true, false);
+
+    enableInterrupt(UART0_IRQ);
+    enabled_ = true;
+    return;
+#else
     disableInterrupt(UART_IRQn);
 
     LPC_SYSCON->SYSAHBCLKCTRL |= 1 << 12; // Enable UART clock
@@ -103,14 +141,28 @@ void Serial::begin(int baudRate, SerialConfig config)
 
     enableInterrupt(UART_IRQn);
     enabled_ = true;
+#endif
 }
 
 void Serial::end()
 {
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    if (!enabled_)
+    {
+        return;
+    }
+
+    uart_set_irq_enables(uart0, false, false);
+    irq_set_enabled(UART0_IRQ, false);
+    uart_deinit(uart0);
+    g_activeSerial = nullptr;
+    enabled_ = false;
+#else
     flush();
     disableInterrupt(UART_IRQn);
     LPC_SYSCON->SYSAHBCLKCTRL &= ~(1 << 12); // Disable UART clock
     enabled_ = false;
+#endif
 }
 
 int Serial::write(byte ch)
@@ -119,6 +171,11 @@ int Serial::write(byte ch)
     {
         return 0;
     }
+
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    uart_putc_raw(uart0, ch);
+    return 1;
+#else
 
 #if  defined(SERIAL_WRITE_DIRECT) && !defined(IAP_EMULATION)
     // wait until the transmitter hold register is free
@@ -154,10 +211,15 @@ int Serial::write(byte ch)
 #endif
 
     return 1;
+#endif
 }
 
 void Serial::flush(void)
 {
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    if (enabled_)
+        uart_tx_wait_blocking(uart0);
+#else
     if (!enabled_)
     {
         return;
@@ -169,10 +231,22 @@ void Serial::flush(void)
     while (writeHead != writeTail)
             ;
 #endif
+#endif
 }
 
 int Serial::read()
 {
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    if (!enabled_)
+        return -1;
+
+    int ch = BufferedStream::read();
+    if (ch >= 0)
+        return ch;
+
+    return uart_is_readable(uart0) ? uart_getc(uart0) : -1;
+#else
+
     if (!enabled_)
     {
         return -1;
@@ -189,10 +263,28 @@ int Serial::read()
     }
 
     return ch;
+#endif
 }
 
 void Serial::interruptHandler()
 {
+#if defined(SBLIB_PLATFORM_RP2354) || defined(PICO_RP2350)
+    while (uart_is_readable(uart0))
+    {
+        if (!readBufferFull())
+        {
+            readBuffer[readTail] = (byte) uart_getc(uart0);
+            ++readTail;
+            readTail &= BufferedStream::BUFFER_SIZE_MASK;
+        }
+        else
+        {
+            (void) uart_getc(uart0);
+        }
+    }
+    return;
+#else
+
     //FIXME check if this is save to activate
     /*
     if (!enabled_)
@@ -230,4 +322,5 @@ void Serial::interruptHandler()
             LPC_UART->RBR; // if the readBuffer ist full, empty UART
         }
     }
+#endif
 }
